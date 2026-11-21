@@ -13,7 +13,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/BrunaFranca/vida-da-bruna-api/internal/docs"
 	"github.com/BrunaFranca/vida-da-bruna-api/internal/httpapi"
+	"github.com/BrunaFranca/vida-da-bruna-api/internal/migrations"
 )
 
 func main() {
@@ -39,9 +41,15 @@ func run(log *slog.Logger) error {
 	}
 	defer db.Close()
 
+	// Migrations na subida: a API só começa a ouvir com o banco no esquema certo.
+	if err := migrations.Aplicar(ctx, db); err != nil {
+		return err
+	}
+	log.Info("migrations ok")
+
 	srv := &http.Server{
 		Addr:              ":" + env("PORT", "8080"),
-		Handler:           httpapi.New(log, db),
+		Handler:           httpapi.New(log, db, docs.NovoRepo(db)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

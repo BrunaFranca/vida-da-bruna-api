@@ -11,7 +11,7 @@ O app Vida da Bruna roda hoje como Claude Artifact (repo privado `vida-da-bruna`
 - Tudo local com **Docker Compose** (Docker Desktop + WSL2).
 - Etapas:
   1. Esqueleto (`/livez`, `/readyz`), Dockerfile, Compose com Postgres, CI. **Concluída em 21/11/2026.**
-  2. CRUD de documentos + migrations + testes.
+  2. CRUD de documentos + migrations + testes. **Concluída em 21/11/2026.**
   3. Observabilidade: OpenTelemetry → Collector → Prometheus, Tempo e Grafana; dashboards e SLO com burn rate como código.
   4. Tempo real (SSE) + `ApiStore` no app + import do backup do artifact (local, nunca versionado).
   5. Kubernetes local (Docker Desktop) com Helm chart: probes, HPA, PDB, requests/limits, kube-prometheus-stack.
