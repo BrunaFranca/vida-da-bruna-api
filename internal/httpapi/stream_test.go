@@ -84,3 +84,33 @@ func TestStreamDoc(t *testing.T) {
 		t.Fatalf("depois de gravar, veio %s", ev)
 	}
 }
+
+func TestStreamMulti(t *testing.T) {
+	mem := memoria{}
+	_ = mem.Gravar(context.Background(), "habitos", "h1", map[string]any{"nome": "Piano"})
+	hub := &hubFalso{}
+	srv := httptest.NewServer(New(silencioso, bancoFalso{}, mem, hub))
+	defer srv.Close()
+
+	if r, _ := http.Get(srv.URL + "/v1/stream"); r.StatusCode != http.StatusBadRequest {
+		t.Fatalf("sem itens: status %d, quero 400", r.StatusCode)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/v1/stream?w=habitos&w=config/main", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	r := bufio.NewReader(resp.Body)
+
+	// Na conexão, chega o estado atual de cada item.
+	if ev := proximoEvento(t, r); !strings.Contains(ev, `"w":"habitos"`) || !strings.Contains(ev, `"nome":"Piano"`) {
+		t.Fatalf("primeiro evento: %s", ev)
+	}
+	if ev := proximoEvento(t, r); ev != `{"v":null,"w":"config/main"}` {
+		t.Fatalf("segundo evento: %s", ev)
+	}
+}

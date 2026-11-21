@@ -60,6 +60,7 @@ func New(log *slog.Logger, db Pinger, d Documentos, hub Assinante) http.Handler 
 	mux.HandleFunc("DELETE /v1/{col}/{id}", comTimeout(a.apagar))
 
 	// Tempo real (SSE): sem o timeout de 3 s, a conexão fica aberta enquanto o cliente quiser.
+	mux.HandleFunc("GET /v1/stream", a.streamMulti) // uma conexão para vários itens (é o que o app usa)
 	mux.HandleFunc("GET /v1/{col}/stream", a.streamColecao)
 	mux.HandleFunc("GET /v1/{col}/{id}/stream", a.streamDoc)
 	return mux
