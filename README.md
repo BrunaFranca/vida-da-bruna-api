@@ -14,7 +14,7 @@ flowchart LR
     APP["App Vida da Bruna<br/>React + TypeScript"]
   end
 
-  subgraph VIDA["cluster kind &quot;vida&quot;"]
+  subgraph VIDA["cluster kind: vida"]
     direction TB
     SVC["Service :8081"] --> API1["API Go"] & API2["API Go"] & API3["API Go ...<br/>(HPA 2–5)"]
     API1 & API2 & API3 --> RW["vida-db-rw"]
@@ -24,7 +24,7 @@ flowchart LR
     PROM["Prometheus<br/>(pods, nós, Postgres)"]
   end
 
-  subgraph OBS["cluster kind &quot;obs&quot; · plataforma compartilhada"]
+  subgraph OBS["cluster kind: obs (plataforma compartilhada)"]
     direction TB
     GW["Gateway OTLP<br/>(mantém o tenant)"] --> MIMIR[("Mimir<br/>métricas + ruler")] & LOKI[("Loki<br/>logs")] & TEMPO[("Tempo<br/>traces")]
     MIMIR --> AM["Alertmanager"]
