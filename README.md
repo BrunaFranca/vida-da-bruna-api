@@ -10,13 +10,13 @@ API em Go do meu app pessoal **Vida da Bruna** (agenda, tarefas, hábitos e fina
 
 ```mermaid
 flowchart LR
-  U(["👩 Bruna<br/>no PC ou celular"]) -- "1 · usa" --> APP["📱 App<br/>(as telas)"]
-  APP -- "2 · pede e envia dados" --> API["⚙️ API<br/>(as regras)"]
-  API -- "3 · guarda e lê" --> DB[("🗄️ Banco de dados")]
+  U(["Bruna<br/>no PC ou celular"]) -- "1 · usa" --> APP["App<br/>(as telas)"]
+  APP -- "2 · pede e envia dados" --> API["API<br/>(as regras)"]
+  API -- "3 · guarda e lê" --> DB[("Banco de dados")]
   DB -- "4 · avisa: mudou algo" --> API
   API -- "5 · atualiza todas<br/>as telas abertas" --> APP
-  API -- "6 · manda sinais de saúde" --> OBS["📊 Observabilidade<br/>(painéis e alertas)"]
-  OBS -- "7 · avisa se algo<br/>vai mal" --> SRE(["👩‍💻 Bruna, como SRE"])
+  API -- "6 · manda sinais de saúde" --> OBS["Observabilidade<br/>(painéis e alertas)"]
+  OBS -- "7 · avisa se algo<br/>vai mal" --> SRE(["Bruna, como SRE"])
 ```
 
 1. **Bruna usa o app** no computador ou no celular: anota uma tarefa, marca um hábito, lança um gasto.
