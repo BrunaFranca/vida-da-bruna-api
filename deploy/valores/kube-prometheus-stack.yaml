@@ -1,0 +1,22 @@
+# Prometheus do cluster "vida": coleta o cluster (pods, nós, Postgres) e manda tudo para a plataforma.
+# Sem Grafana e sem Alertmanager aqui: eles ficam na plataforma (não duplicar).
+grafana: { enabled: false }
+alertmanager: { enabled: false }
+defaultRules: { create: false } # regras de SLO do projeto vão para o ruler do Mimir
+
+prometheus:
+  prometheusSpec:
+    retention: 2h # guarda pouco: a fonte da verdade é o Mimir
+    externalLabels: { cluster: vida }
+    # Coleta PodMonitors/ServiceMonitors de qualquer chart (ex.: o do CloudNativePG).
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    remoteWrite:
+      - url: http://plataforma-mimir:9009/api/v1/push
+        headers: { X-Scope-OrgID: vida-da-bruna }
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { memory: 768Mi }
+
+kube-state-metrics: { resources: { requests: { cpu: 20m, memory: 64Mi } } }
+prometheus-node-exporter: { resources: { requests: { cpu: 20m, memory: 32Mi } } }

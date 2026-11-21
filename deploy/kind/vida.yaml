@@ -1,0 +1,10 @@
+# Cluster "vida": onde a API e o Postgres rodam. A API fica em http://localhost:8081.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: vida
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30081
+        hostPort: 8081
+        listenAddress: 127.0.0.1

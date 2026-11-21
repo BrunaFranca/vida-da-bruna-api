@@ -1,0 +1,105 @@
+{{- $nome := .Release.Name -}}
+{{- $labels := dict "app.kubernetes.io/name" "vida-da-bruna-api" "app.kubernetes.io/instance" $nome -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $nome }}
+automountServiceAccountToken: false # a API não fala com a API do Kubernetes
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $nome }}
+  labels: {{- toYaml $labels | nindent 4 }}
+spec:
+  # Sem "replicas": quem decide é o HPA.
+  revisionHistoryLimit: 3
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 } # deploy sem perder capacidade
+  selector:
+    matchLabels: {{- toYaml $labels | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- toYaml $labels | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $nome }}
+      terminationGracePeriodSeconds: 20
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532 # usuário "nonroot" da imagem distroless
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: api
+          image: "{{ .Values.imagem.repositorio }}:{{ .Values.imagem.tag }}"
+          imagePullPolicy: {{ .Values.imagem.pullPolicy }}
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.banco.secret }}, key: {{ .Values.banco.chave }} }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ .Values.telemetria.endpoint | quote }} }
+            - { name: OTEL_EXPORTER_OTLP_HEADERS, value: "X-Scope-OrgID={{ .Values.telemetria.tenant }}" }
+            - { name: OTEL_METRIC_EXPORT_INTERVAL, value: "10000" }
+            - name: POD
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: OTEL_RESOURCE_ATTRIBUTES, value: "k8s.cluster.name=vida,k8s.namespace.name={{ .Release.Namespace }},k8s.pod.name=$(POD)" }
+            - { name: VERSAO, value: {{ .Values.imagem.tag | quote }} }
+          # liveness: o processo está vivo? (não olha o banco: banco fora não deve reiniciar a API)
+          livenessProbe:
+            httpGet: { path: /livez, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          # readiness: pode receber tráfego? (olha o banco: sem banco, sai do Service)
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+            failureThreshold: 2
+          startupProbe:
+            httpGet: { path: /livez, port: http }
+            periodSeconds: 2
+            failureThreshold: 30 # até 60 s para migrations na subida
+          lifecycle:
+            # Espera o Service tirar o pod da rotação antes de desligar (evita erro no meio do deploy).
+            preStop:
+              sleep: { seconds: 5 }
+          resources: {{- toYaml .Values.recursos | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $nome }}
+  labels: {{- toYaml $labels | nindent 4 }}
+spec:
+  type: NodePort
+  selector: {{- toYaml $labels | nindent 4 }}
+  ports:
+    - { name: http, port: 8080, targetPort: http, nodePort: {{ .Values.servico.nodePort }} }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $nome }}
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: {{ $nome }} }
+  minReplicas: {{ .Values.escala.min }}
+  maxReplicas: {{ .Values.escala.max }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: {{ .Values.escala.cpuAlvo }} }
+---
+# Em manutenções (drain de nó), pelo menos 1 réplica continua no ar.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $nome }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {{- toYaml $labels | nindent 6 }}

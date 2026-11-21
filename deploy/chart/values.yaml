@@ -1,0 +1,27 @@
+imagem:
+  repositorio: vida-da-bruna-api
+  tag: dev
+  pullPolicy: IfNotPresent
+
+# Réplicas mínimas e máximas (HPA por CPU).
+escala:
+  min: 2
+  max: 5
+  cpuAlvo: 70 # % do request
+
+recursos:
+  requests: { cpu: 100m, memory: 64Mi }
+  limits: { memory: 128Mi } # sem limite de CPU: evita throttling; o HPA cuida da escala
+
+# Banco: Secret gerado pelo CloudNativePG (<cluster>-app), chave "uri".
+banco:
+  secret: vida-db-app
+  chave: uri
+
+# Para onde vão traces, métricas e logs (plataforma compartilhada) e com qual tenant.
+telemetria:
+  endpoint: http://plataforma-gateway:4317
+  tenant: vida-da-bruna
+
+servico:
+  nodePort: 30081 # → localhost:8081 (ver deploy/kind/vida.yaml)

@@ -1,0 +1,34 @@
+# Ponte para a plataforma de observabilidade (outro cluster kind, repo plataforma-observabilidade).
+# Services sem seletor + EndpointSlice apontando para o IP do nó "obs" na rede Docker "kind".
+# O IP é preenchido por deploy/subir.sh (variável IP_OBS).
+apiVersion: v1
+kind: Service
+metadata:
+  name: plataforma-gateway
+spec:
+  ports: [{ name: otlp-grpc, port: 4317, targetPort: 30317 }]
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: plataforma-gateway
+  labels: { kubernetes.io/service-name: plataforma-gateway }
+addressType: IPv4
+ports: [{ name: otlp-grpc, port: 30317 }]
+endpoints: [{ addresses: ["${IP_OBS}"] }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plataforma-mimir
+spec:
+  ports: [{ name: http, port: 9009, targetPort: 30909 }]
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: plataforma-mimir
+  labels: { kubernetes.io/service-name: plataforma-mimir }
+addressType: IPv4
+ports: [{ name: http, port: 30909 }]
+endpoints: [{ addresses: ["${IP_OBS}"] }]

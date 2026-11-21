@@ -1,0 +1,20 @@
+# Postgres gerenciado pelo CloudNativePG: 1 primário + 1 réplica, failover automático.
+# O operador cria o Secret "vida-db-app" (chave "uri") e o Service "vida-db-rw" (sempre o primário).
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: vida-db
+spec:
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:17
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: vida
+      owner: vida
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  monitoring:
+    enablePodMonitor: true # métricas do Postgres → Prometheus do cluster → plataforma

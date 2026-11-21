@@ -11,7 +11,7 @@ export const options = {
   scenarios: {
     normal: {
       executor: "constant-arrival-rate",
-      rate: 2, // iterações por segundo (≈ 9 requisições/s)
+      rate: Number(__ENV.TAXA || 2), // iterações por segundo (≈ 4,5 requisições por iteração)
       timeUnit: "1s",
       duration: __ENV.DURACAO || "15m",
       preAllocatedVUs: 5,
