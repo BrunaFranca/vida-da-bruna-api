@@ -6,7 +6,30 @@ API em Go do meu app pessoal **Vida da Bruna** (agenda, tarefas, hábitos e fina
 
 > O app em si (React + TypeScript) fica num repo privado; a observabilidade, num cluster compartilhado do repo [plataforma-observabilidade](https://github.com/BrunaFranca/plataforma-observabilidade).
 
-## Arquitetura
+## Como funciona (visão simples)
+
+```mermaid
+flowchart LR
+  U(["👩 Bruna<br/>no PC ou celular"]) -- "1 · usa" --> APP["📱 App<br/>(as telas)"]
+  APP -- "2 · pede e envia dados" --> API["⚙️ API<br/>(as regras)"]
+  API -- "3 · guarda e lê" --> DB[("🗄️ Banco de dados")]
+  DB -- "4 · avisa: mudou algo" --> API
+  API -- "5 · atualiza todas<br/>as telas abertas" --> APP
+  API -- "6 · manda sinais de saúde" --> OBS["📊 Observabilidade<br/>(painéis e alertas)"]
+  OBS -- "7 · avisa se algo<br/>vai mal" --> SRE(["👩‍💻 Bruna, como SRE"])
+```
+
+1. **Bruna usa o app** no computador ou no celular: anota uma tarefa, marca um hábito, lança um gasto.
+2. **O app conversa com a API.** O app só desenha as telas; quem guarda e entrega os dados é a API, um programa que fica num servidor.
+3. **A API guarda tudo no banco de dados** (Postgres). O banco tem uma cópia reserva sempre atualizada: se o principal cair, a cópia assume sozinha.
+4. **O banco avisa a API quando algo muda.**
+5. **A API atualiza na hora todas as telas abertas.** Se Bruna marca uma tarefa no celular, o computador mostra a mudança sem precisar recarregar.
+6. **Enquanto trabalha, a API manda "sinais de saúde"**: quanto tempo cada pedido levou, se deu erro, o caminho de cada pedido.
+7. **A observabilidade transforma esses sinais em painéis e alertas.** Se o app começar a falhar ou ficar lento demais (abaixo das metas combinadas), um alerta avisa antes de alguém reclamar.
+
+**Onde tudo roda:** a API e o banco rodam num "cluster" Kubernetes (um conjunto de máquinas que mantém tudo no ar e cria mais cópias da API quando o uso aumenta). A observabilidade roda em outro cluster, compartilhado, que pode atender outros projetos no futuro.
+
+## Arquitetura (visão técnica)
 
 ```mermaid
 flowchart LR
