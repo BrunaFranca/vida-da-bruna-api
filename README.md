@@ -16,11 +16,11 @@ flowchart LR
 
   subgraph VIDA["cluster kind: vida"]
     direction TB
-    SVC["Service :8081"] --> API1["API Go"] & API2["API Go"] & API3["API Go ...<br/>(HPA 2–5)"]
-    API1 & API2 & API3 --> RW["vida-db-rw"]
+    SVC["Service :8081"] --> API["API Go<br/>(Deployment, HPA 2–5)"]
+    API --> RW["vida-db-rw"]
     RW --> PG1[("Postgres<br/>primário")]
     PG1 -. replicação .-> PG2[("Postgres<br/>réplica")]
-    PG1 -. "LISTEN/NOTIFY<br/>(tempo real)" .-> API1
+    PG1 -. "LISTEN/NOTIFY<br/>(tempo real)" .-> API
     PROM["Prometheus<br/>(pods, nós, Postgres)"]
   end
 
@@ -32,7 +32,7 @@ flowchart LR
   end
 
   APP -- "REST + 1 conexão SSE" --> SVC
-  API1 & API2 & API3 -- "OTLP: traces, métricas, logs<br/>X-Scope-OrgID: vida-da-bruna" --> GW
+  API -- "OTLP: traces, métricas, logs<br/>X-Scope-OrgID: vida-da-bruna" --> GW
   PROM -- "remote write<br/>X-Scope-OrgID: vida-da-bruna" --> MIMIR
 ```
 
