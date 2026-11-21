@@ -6,76 +6,161 @@ API em Go do meu app pessoal **Vida da Bruna** (agenda, tarefas, hábitos e fina
 
 > O app em si (React + TypeScript) fica num repo privado; a observabilidade, num cluster compartilhado do repo [plataforma-observabilidade](https://github.com/BrunaFranca/plataforma-observabilidade).
 
-## Como funciona (visão simples)
+## Como funciona
 
 ```mermaid
-flowchart LR
-  U(["Bruna<br/>no PC ou celular"]) -- "1 · usa" --> APP["App<br/>(as telas)"]
-  APP -- "2 · pede e envia dados" --> API["API<br/>(as regras)"]
-  API -- "3 · guarda e lê" --> DB[("Banco de dados")]
-  DB -- "4 · avisa: mudou algo" --> API
-  API -- "5 · atualiza todas<br/>as telas abertas" --> APP
-  API -- "6 · manda sinais de saúde" --> OBS["Observabilidade<br/>(painéis e alertas)"]
-  OBS -- "7 · avisa se algo<br/>vai mal" --> SRE(["Bruna, como SRE"])
-```
-
-1. **Bruna usa o app** no computador ou no celular: anota uma tarefa, marca um hábito, lança um gasto.
-2. **O app conversa com a API.** O app só desenha as telas; quem guarda e entrega os dados é a API, um programa que fica num servidor.
-3. **A API guarda tudo no banco de dados** (Postgres). O banco tem uma cópia reserva sempre atualizada: se o principal cair, a cópia assume sozinha.
-4. **O banco avisa a API quando algo muda.**
-5. **A API atualiza na hora todas as telas abertas.** Se Bruna marca uma tarefa no celular, o computador mostra a mudança sem precisar recarregar.
-6. **Enquanto trabalha, a API manda "sinais de saúde"**: quanto tempo cada pedido levou, se deu erro, o caminho de cada pedido.
-7. **A observabilidade transforma esses sinais em painéis e alertas.** Se o app começar a falhar ou ficar lento demais (abaixo das metas combinadas), um alerta avisa antes de alguém reclamar.
-
-**Onde tudo roda:** a API e o banco rodam num "cluster" Kubernetes (um conjunto de máquinas que mantém tudo no ar e cria mais cópias da API quando o uso aumenta). A observabilidade roda em outro cluster, compartilhado, que pode atender outros projetos no futuro.
-
-## Arquitetura (visão técnica)
-
-```mermaid
-flowchart LR
-  subgraph PC["Navegador"]
+flowchart TB
+  subgraph U["Usuária"]
+    B(["Bruna, no PC ou no celular"])
+  end
+  subgraph A["Aplicação"]
     APP["App Vida da Bruna<br/>React + TypeScript"]
+    API["API<br/>Go · 2 a 5 réplicas"]
+  end
+  subgraph D["Dados"]
+    PG[("Postgres principal")]
+    PGR[("Postgres reserva")]
+  end
+  subgraph O["Observabilidade (plataforma compartilhada)"]
+    GW["Gateway"]
+    ST[("Mimir · Loki · Tempo")]
+    GR["Grafana + alertas"]
   end
 
-  subgraph VIDA["cluster kind: vida"]
-    direction TB
-    SVC["Service :8081"] --> API["API Go<br/>(Deployment, HPA 2–5)"]
-    API --> RW["vida-db-rw"]
-    RW --> PG1[("Postgres<br/>primário")]
-    PG1 -. replicação .-> PG2[("Postgres<br/>réplica")]
-    PG1 -. "LISTEN/NOTIFY<br/>(tempo real)" .-> API
-    PROM["Prometheus<br/>(pods, nós, Postgres)"]
-  end
-
-  subgraph OBS["cluster kind: obs (plataforma compartilhada)"]
-    direction TB
-    GW["Gateway OTLP<br/>(mantém o tenant)"] --> MIMIR[("Mimir<br/>métricas + ruler")] & LOKI[("Loki<br/>logs")] & TEMPO[("Tempo<br/>traces")]
-    MIMIR --> AM["Alertmanager"]
-    GRAF["Grafana"] --> MIMIR & LOKI & TEMPO
-  end
-
-  APP -- "REST + 1 conexão SSE" --> SVC
-  API -- "OTLP: traces, métricas, logs<br/>X-Scope-OrgID: vida-da-bruna" --> GW
-  PROM -- "remote write<br/>X-Scope-OrgID: vida-da-bruna" --> MIMIR
+  B -- "1" --> APP
+  APP -- "2" --> API
+  API -- "3" --> PG
+  PG -- "4" --> API
+  API -- "5" --> APP
+  PG -. "6" .-> PGR
+  API -- "7" --> GW
+  GW --> ST
+  ST -- "8" --> GR
+  GR -- "9" --> B
 ```
 
-**Tempo real:** uma escrita em qualquer réplica chega a todos os navegadores conectados em qualquer réplica.
+| Nº | De → Para | Como conversa | Por quê |
+|---|---|---|---|
+| 1 | Bruna → App | navegador / app instalado | ela anota tarefas, marca hábitos, lança gastos |
+| 2 | App → API | HTTP (REST): `GET`, `PUT`, `PATCH`, `DELETE` | o app só desenha as telas; a API valida e grava |
+| 3 | API → Postgres | SQL (pgx), dados em JSON | o banco guarda tudo de forma durável |
+| 4 | Postgres → API | `LISTEN/NOTIFY` | o banco avisa na hora quando algo muda, para todas as réplicas |
+| 5 | API → App | SSE: **uma** conexão aberta por aba | a tela atualiza sozinha, sem recarregar |
+| 6 | Principal → Reserva | replicação do Postgres (CloudNativePG) | se o principal cair, a reserva assume sozinha |
+| 7 | API → Gateway | OTLP com o tenant `vida-da-bruna` | traces, métricas e logs saem da API para a central |
+| 8 | Armazenamento → Grafana | consultas PromQL, LogQL e TraceQL | painéis de saúde e metas (SLOs) |
+| 9 | Grafana → Bruna | alertas de burn rate | avisa quando o app está gastando o "orçamento de erro" rápido demais |
+
+## A jornada de um pedido
+
+**A história:** Bruna está com o app aberto no computador e, pelo celular, marca a tarefa "Tocar piano" como feita.
 
 ```mermaid
 sequenceDiagram
-  participant A as Aba A
-  participant R1 as API (réplica 1)
-  participant PG as Postgres
-  participant R2 as API (réplica 2)
-  participant B as Aba B
-  B->>R2: GET /v1/stream?w=eventos&w=config/main (SSE)
-  A->>R1: POST /v1/eventos
-  R1->>PG: INSERT
-  PG-->>R1: NOTIFY docs
-  PG-->>R2: NOTIFY docs
-  R2->>PG: lê a coleção
-  R2-->>B: data: {"w":"eventos","v":[...]}
+  autonumber
+  actor Bruna
+  participant Cel as App no celular
+  participant API as API (réplica 1)
+  participant DB as Postgres
+  participant API2 as API (réplica 2)
+  participant PC as App no PC
+  participant OBS as Observabilidade
+
+  Note over PC,API2: O PC já está "ouvindo" as mudanças<br/>por uma conexão aberta (SSE)
+  Bruna->>Cel: toca em "feito"
+  Cel->>API: PATCH /v1/eventos/piano {"feito": true}
+  API->>DB: grava a mudança
+  DB-->>API: ok
+  API-->>Cel: 204 (pronto)
+  Note over DB: o banco avisa todas as réplicas<br/>(LISTEN/NOTIFY)
+  DB-->>API2: "eventos" mudou
+  API2->>DB: lê a lista atualizada
+  API2-->>PC: envia a lista nova
+  PC-->>Bruna: a tarefa aparece riscada no PC,<br/>sem recarregar
+  API-)OBS: trace do pedido, tempo gasto, status
+  Note over OBS: se muitos pedidos falharem ou ficarem lentos,<br/>o alerta de SLO dispara
 ```
+
+**Em resumo:** o celular pede, a API grava, o banco avisa, e todas as telas abertas se atualizam, mesmo conectadas a outra cópia da API. Ao mesmo tempo, cada pedido deixa rastros na observabilidade, que mostra a saúde do app e avisa quando algo sai das metas.
+
+## Arquitetura técnica
+
+Visão de engenharia: clusters, namespaces, objetos do Kubernetes, protocolos e portas.
+
+```mermaid
+flowchart LR
+  subgraph HOST["PC · Docker Desktop (WSL2) · rede Docker kind"]
+    direction LR
+
+    subgraph VIDA["cluster kind: vida"]
+      direction TB
+      subgraph NSV["ns: vida"]
+        SVC["Service api<br/>NodePort 30081 → :8080"]
+        DEP["Deployment api<br/>2–5 pods · Go<br/>probes livez/readyz/startup<br/>preStop 5s · UID 65532 · FS ro"]
+        HPA["HPA<br/>CPU 70% do request"]
+        PDB["PDB<br/>minAvailable 1"]
+        RW["Service vida-db-rw<br/>:5432 → primário"]
+        subgraph CNPG["CloudNativePG Cluster vida-db"]
+          P1[("vida-db-1<br/>Postgres 17 · primário")]
+          P2[("vida-db-2<br/>réplica streaming")]
+        end
+        SEC["Secret vida-db-app<br/>uri gerada pelo operador"]
+        PGW["Service plataforma-gateway :4317<br/>+ EndpointSlice → nó obs:30317"]
+        PMW["Service plataforma-mimir :9009<br/>+ EndpointSlice → nó obs:30909"]
+      end
+      subgraph NSM["ns: monitoramento"]
+        PROM["Prometheus (Operator)<br/>kube-state-metrics · node-exporter<br/>PodMonitor do CNPG"]
+      end
+      MS["metrics-server<br/>(ns kube-system)"]
+      OP["operador CNPG<br/>(ns cnpg-system)"]
+    end
+
+    subgraph OBS["cluster kind: obs"]
+      direction TB
+      subgraph NSO["ns: observabilidade"]
+        GWS["Service gateway<br/>NodePort 30317"]
+        GW["OTel Collector (gateway)<br/>otlp receiver · include_metadata<br/>batch por tenant · headers_setter"]
+        MI[("Mimir · StatefulSet<br/>distributor/ingester/querier<br/>ruler + alertmanager<br/>NodePort 30909")]
+        LO[("Loki · StatefulSet<br/>auth_enabled · TSDB v13")]
+        TE[("Tempo · StatefulSet<br/>multitenancy")]
+        GF["Grafana<br/>NodePort 30300<br/>fontes por tenant"]
+      end
+    end
+  end
+
+  NAV(["Navegador<br/>App React"]) -- "HTTP REST + SSE<br/>localhost:8081" --> SVC
+  SVC --> DEP
+  HPA -. escala .-> DEP
+  MS -. "métricas de CPU" .-> HPA
+  PDB -. protege .-> DEP
+  DEP -- "pgx · SQL + LISTEN docs" --> RW --> P1
+  P1 -- "replicação física" --> P2
+  OP -. "failover, Secret, Services" .-> CNPG
+  SEC -. "env DATABASE_URL" .-> DEP
+  DEP -- "OTLP gRPC<br/>X-Scope-OrgID: vida-da-bruna" --> PGW
+  PROM -- "remote write<br/>X-Scope-OrgID: vida-da-bruna" --> PMW
+  PGW == "rede kind" ==> GWS --> GW
+  PMW == "rede kind" ==> MI
+  GW -- "OTLP HTTP /otlp" --> MI
+  GW -- "OTLP gRPC" --> TE
+  GW -- "OTLP HTTP /otlp" --> LO
+  GF -- "PromQL · LogQL · TraceQL<br/>(header do tenant)" --> MI & LO & TE
+  DEV(["Bruna · SRE<br/>localhost:3300"]) --> GF
+```
+
+| Ligação | Protocolo / porta | Detalhe |
+|---|---|---|
+| Navegador → API | HTTP :8081 (NodePort 30081) | REST para escrita; **uma** conexão SSE (`/v1/stream?w=...`) por aba |
+| API → Postgres | TCP :5432 via `vida-db-rw` | pool pgx; spans por query (otelpgx); `LISTEN docs` numa conexão dedicada com backoff |
+| Postgres → API | `NOTIFY docs` | trigger em `docs` publica `{colecao, id}`; todas as réplicas recebem |
+| Primário → réplica | replicação física (CNPG) | failover automático; `vida-db-rw` passa a apontar para o novo primário |
+| API → plataforma | OTLP gRPC → `obs:30317` | `OTEL_EXPORTER_OTLP_HEADERS=X-Scope-OrgID=vida-da-bruna`; métricas a cada 10 s |
+| Prometheus → Mimir | remote write → `obs:30909/api/v1/push` | métricas do cluster com `cluster="vida"` |
+| Gateway → backends | OTLP (HTTP para Mimir/Loki, gRPC para Tempo) | o tenant segue no header; lotes nunca misturam tenants |
+| Projeto → plataforma | API do ruler (`mimirtool rules sync`) e API do Grafana | SLOs e dashboards vivem neste repo ("você constrói, você opera") |
+| Ponte entre clusters | Services sem seletor + EndpointSlice | apontam para o IP do nó `obs` na rede Docker `kind` |
+
+**CI (GitHub Actions):** `go vet` · testes com `-race` contra Postgres real · golangci-lint · build da imagem · `promtool check rules` · validação do Collector · JSON dos dashboards · `helm lint` + kubeconform. A plataforma tem um job que sobe o cluster kind inteiro e prova o isolamento entre tenants.
 
 ## O que este projeto mostra
 
