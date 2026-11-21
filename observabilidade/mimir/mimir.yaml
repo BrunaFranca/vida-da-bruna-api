@@ -1,0 +1,84 @@
+# Mimir em modo monolítico (todos os componentes num processo só), guardando em disco local.
+# Em produção seria object storage (S3/GCS) e componentes separados; aqui o objetivo é rodar leve no Compose.
+target: all,alertmanager
+multitenancy_enabled: false # tenant único: "anonymous"
+
+server:
+  http_listen_port: 9009
+  log_level: warn
+
+common:
+  storage:
+    backend: filesystem
+    filesystem:
+      dir: /data/blocos
+
+blocks_storage:
+  tsdb:
+    dir: /data/tsdb
+  bucket_store:
+    sync_dir: /data/tsdb-sync
+
+memberlist:
+  join_members: [] # nó único
+
+ingester:
+  ring:
+    replication_factor: 1
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+distributor:
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+compactor:
+  data_dir: /data/compactor
+  sharding_ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+# Regras de SLO (recording + alertas) lidas de arquivos versionados: regras/<tenant>/*.yaml
+ruler_storage:
+  backend: local
+  local:
+    directory: /etc/mimir/regras
+ruler:
+  rule_path: /data/ruler
+  alertmanager_url: http://localhost:9009/alertmanager
+  evaluation_interval: 30s
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+alertmanager:
+  data_dir: /data/am-estado
+  fallback_config_file: /etc/mimir/alertmanager.yaml
+  external_url: http://localhost:9009/alertmanager
+  sharding_ring:
+    instance_addr: 127.0.0.1
+    replication_factor: 1
+    kvstore:
+      store: inmemory
+
+alertmanager_storage:
+  backend: filesystem
+  filesystem:
+    dir: /data/am-config
+
+limits:
+  max_global_exemplars_per_user: 100000 # guarda exemplars: o ponto do gráfico que leva ao trace
+  compactor_blocks_retention_period: 35d # um pouco mais que a janela de 30 dias do SLO
+  otel_metric_suffixes_enabled: true # http.server.request.duration → http_server_request_duration_seconds

@@ -48,3 +48,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: docker build -t vida-da-bruna-api:ci .
+
+  # Configuração de observabilidade é código: nada quebrado entra no repo.
+  observabilidade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Regras de SLO (promtool)
+        run: docker run --rm -v "$PWD/observabilidade/mimir/regras:/r:ro" --entrypoint promtool prom/prometheus:v3.4.2 check rules /r/anonymous/slo.yaml
+      - name: Config do Collector
+        run: docker run --rm -v "$PWD/observabilidade/collector:/c:ro" otel/opentelemetry-collector-contrib:0.129.1 validate --config=/c/config.yaml
+      - name: Dashboards são JSON válido
+        run: for f in observabilidade/grafana/dashboards/*.json; do jq empty "$f" && echo "ok $f"; done
+      - name: Compose válido
+        run: docker compose config --quiet

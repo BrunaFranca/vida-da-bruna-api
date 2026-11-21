@@ -1,0 +1,107 @@
+# SLOs da API (janela de 30 dias). Metas definidas pela Bruna em 21/11/2026:
+#   Disponibilidade: 99,5% das requisições /v1 sem erro 5xx      → error budget de 0,5%
+#   Latência:        95% das requisições /v1 abaixo de 300 ms     → error budget de 5%
+#
+# Alertas de burn rate em múltiplas janelas (SRE Workbook, cap. 5):
+#   burn rate = velocidade com que o budget está sendo gasto (1 = gasta tudo em exatamente 30 dias).
+#   Rápido: 14,4x em 1h E em 5m  → gastaria 2% do budget mensal em 1 hora → critical
+#   Lento:   6x   em 6h E em 30m → gastaria 5% do budget mensal em 6 horas → warning
+#   A janela curta faz o alerta parar logo que o problema acaba.
+#
+# Health checks (/livez, /readyz) já ficam fora das métricas (filtro no otelhttp).
+
+groups:
+  - name: slo-disponibilidade-sli
+    interval: 30s
+    rules:
+      # Fração de requisições com erro (5xx) em cada janela.
+      - record: slo:disponibilidade:erros_razao5m
+        expr: |
+          (sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_response_status_code=~"5.."}[5m])) or vector(0))
+          / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[5m]))
+      - record: slo:disponibilidade:erros_razao30m
+        expr: |
+          (sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_response_status_code=~"5.."}[30m])) or vector(0))
+          / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[30m]))
+      - record: slo:disponibilidade:erros_razao1h
+        expr: |
+          (sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_response_status_code=~"5.."}[1h])) or vector(0))
+          / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[1h]))
+      - record: slo:disponibilidade:erros_razao6h
+        expr: |
+          (sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_response_status_code=~"5.."}[6h])) or vector(0))
+          / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[6h]))
+
+  - name: slo-latencia-sli
+    interval: 30s
+    rules:
+      # Fração de requisições lentas (> 300 ms): 1 - (abaixo de 0,3 s / total). O bucket 0.3 existe de propósito.
+      - record: slo:latencia:lentas_razao5m
+        expr: |
+          1 - (
+            sum(rate(http_server_request_duration_seconds_bucket{job="vida-da-bruna-api", http_route=~"/v1/.*", le="0.3"}[5m]))
+            / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[5m]))
+          )
+      - record: slo:latencia:lentas_razao30m
+        expr: |
+          1 - (
+            sum(rate(http_server_request_duration_seconds_bucket{job="vida-da-bruna-api", http_route=~"/v1/.*", le="0.3"}[30m]))
+            / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[30m]))
+          )
+      - record: slo:latencia:lentas_razao1h
+        expr: |
+          1 - (
+            sum(rate(http_server_request_duration_seconds_bucket{job="vida-da-bruna-api", http_route=~"/v1/.*", le="0.3"}[1h]))
+            / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[1h]))
+          )
+      - record: slo:latencia:lentas_razao6h
+        expr: |
+          1 - (
+            sum(rate(http_server_request_duration_seconds_bucket{job="vida-da-bruna-api", http_route=~"/v1/.*", le="0.3"}[6h]))
+            / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[6h]))
+          )
+
+  - name: slo-alertas
+    interval: 30s
+    rules:
+      - alert: DisponibilidadeBudgetQueimandoRapido
+        expr: |
+          slo:disponibilidade:erros_razao1h > (14.4 * 0.005)
+          and slo:disponibilidade:erros_razao5m > (14.4 * 0.005)
+        labels:
+          severity: critical
+          slo: disponibilidade
+        annotations:
+          resumo: "API devolvendo muitos 5xx: o error budget de 30 dias acaba em ~2 dias neste ritmo."
+          runbook: docs/runbooks/banco-fora.md
+
+      - alert: DisponibilidadeBudgetQueimandoDevagar
+        expr: |
+          slo:disponibilidade:erros_razao6h > (6 * 0.005)
+          and slo:disponibilidade:erros_razao30m > (6 * 0.005)
+        labels:
+          severity: warning
+          slo: disponibilidade
+        annotations:
+          resumo: "Erros 5xx persistentes: o error budget de 30 dias acaba em ~5 dias neste ritmo."
+          runbook: docs/runbooks/banco-fora.md
+
+      - alert: LatenciaBudgetQueimandoRapido
+        expr: |
+          slo:latencia:lentas_razao1h > (14.4 * 0.05)
+          and slo:latencia:lentas_razao5m > (14.4 * 0.05)
+        labels:
+          severity: critical
+          slo: latencia
+        annotations:
+          resumo: "Muitas requisições acima de 300 ms: o error budget de latência acaba em ~2 dias neste ritmo."
+
+      - alert: LatenciaBudgetQueimandoDevagar
+        expr: |
+          slo:latencia:lentas_razao6h > (6 * 0.05)
+          and slo:latencia:lentas_razao30m > (6 * 0.05)
+        labels:
+          severity: warning
+          slo: latencia
+        annotations:
+          resumo: "Latência acima de 300 ms persistente: o error budget de latência acaba em ~5 dias neste ritmo."

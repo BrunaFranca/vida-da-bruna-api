@@ -51,20 +51,31 @@ func New(log *slog.Logger, db Pinger, d Documentos) http.Handler {
 	// readyz: pronta para receber tráfego? Aqui sim, checa o banco.
 	mux.HandleFunc("GET /readyz", a.readyz)
 
-	mux.HandleFunc("GET /v1/{col}", a.listar)
-	mux.HandleFunc("POST /v1/{col}", a.criar)
-	mux.HandleFunc("GET /v1/{col}/{id}", a.obter)
-	mux.HandleFunc("PUT /v1/{col}/{id}", a.gravar)
-	mux.HandleFunc("PATCH /v1/{col}/{id}", a.mesclar)
-	mux.HandleFunc("DELETE /v1/{col}/{id}", a.apagar)
+	mux.HandleFunc("GET /v1/{col}", comTimeout(a.listar))
+	mux.HandleFunc("POST /v1/{col}", comTimeout(a.criar))
+	mux.HandleFunc("GET /v1/{col}/{id}", comTimeout(a.obter))
+	mux.HandleFunc("PUT /v1/{col}/{id}", comTimeout(a.gravar))
+	mux.HandleFunc("PATCH /v1/{col}/{id}", comTimeout(a.mesclar))
+	mux.HandleFunc("DELETE /v1/{col}/{id}", comTimeout(a.apagar))
 	return mux
+}
+
+// comTimeout limita cada requisição a 3 s. Com o banco fora, a API responde 500 rápido em vez de ficar pendurada.
+// Fica dentro de cada rota (e não em volta do mux) para o mux marcar a rota na requisição original,
+// que é a que o OpenTelemetry lê para o label http_route.
+func comTimeout(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		h(w, r.WithContext(ctx))
+	}
 }
 
 func (a *api) readyz(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 	if err := a.db.Ping(ctx); err != nil {
-		a.log.Warn("banco indisponível", "err", err)
+		a.log.WarnContext(r.Context(), "banco indisponível", "err", err)
 		responder(w, http.StatusServiceUnavailable, map[string]string{"status": "banco indisponível"})
 		return
 	}
@@ -78,7 +89,7 @@ func (a *api) listar(w http.ResponseWriter, r *http.Request) {
 	}
 	lista, err := a.docs.Listar(r.Context(), col)
 	if err != nil {
-		a.falha(w, err)
+		a.falha(w, r, err)
 		return
 	}
 	saida := make([]map[string]any, 0, len(lista))
@@ -95,7 +106,7 @@ func (a *api) obter(w http.ResponseWriter, r *http.Request) {
 	}
 	d, err := a.docs.Obter(r.Context(), col, r.PathValue("id"))
 	if err != nil {
-		a.falha(w, err)
+		a.falha(w, r, err)
 		return
 	}
 	responder(w, http.StatusOK, comID(d))
@@ -112,7 +123,7 @@ func (a *api) criar(w http.ResponseWriter, r *http.Request) {
 	}
 	id := novoID()
 	if err := a.docs.Gravar(r.Context(), col, id, dados); err != nil {
-		a.falha(w, err)
+		a.falha(w, r, err)
 		return
 	}
 	responder(w, http.StatusCreated, map[string]string{"id": id})
@@ -136,7 +147,7 @@ func (a *api) escrever(w http.ResponseWriter, r *http.Request, op func(context.C
 		return
 	}
 	if err := op(r.Context(), col, r.PathValue("id"), dados); err != nil {
-		a.falha(w, err)
+		a.falha(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -148,7 +159,7 @@ func (a *api) apagar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := a.docs.Apagar(r.Context(), col, r.PathValue("id")); err != nil {
-		a.falha(w, err)
+		a.falha(w, r, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -177,12 +188,12 @@ func lerCorpo(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
 	return dados, true
 }
 
-func (a *api) falha(w http.ResponseWriter, err error) {
+func (a *api) falha(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, docs.ErrNaoEncontrado) {
 		responder(w, http.StatusNotFound, map[string]string{"erro": "não encontrado"})
 		return
 	}
-	a.log.Error("erro no banco", "err", err)
+	a.log.ErrorContext(r.Context(), "erro no banco", "err", err)
 	responder(w, http.StatusInternalServerError, map[string]string{"erro": "erro interno"})
 }
 

@@ -1,0 +1,6 @@
+# Por enquanto os alertas só aparecem no Grafana/Alertmanager, sem notificar ninguém.
+route:
+  receiver: ninguem
+  group_by: [alertname, slo]
+receivers:
+  - name: ninguem

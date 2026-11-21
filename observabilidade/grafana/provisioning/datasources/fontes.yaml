@@ -1,0 +1,52 @@
+# Fontes de dados do Grafana, já ligadas entre si:
+#   métrica (exemplar) → trace · trace → logs · log (trace_id) → trace
+apiVersion: 1
+
+datasources:
+  - name: Mimir
+    uid: mimir
+    type: prometheus
+    url: http://mimir:9009/prometheus
+    isDefault: true
+    jsonData:
+      prometheusType: Mimir
+      manageAlerts: true # mostra as regras do ruler na tela de alertas
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+
+  - name: Alertmanager
+    uid: alertmanager
+    type: alertmanager
+    url: http://mimir:9009/alertmanager
+    jsonData:
+      implementation: mimir
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    url: http://tempo:3200
+    jsonData:
+      serviceMap:
+        datasourceUid: mimir
+      nodeGraph:
+        enabled: true
+      tracesToLogsV2:
+        datasourceUid: loki
+        filterByTraceID: true
+        spanStartTimeShift: -5m
+        spanEndTimeShift: 5m
+      tracesToMetrics:
+        datasourceUid: mimir
+
+  - name: Loki
+    uid: loki
+    type: loki
+    url: http://loki:3100
+    jsonData:
+      derivedFields:
+        - name: trace_id
+          matcherType: label # o trace_id chega como metadado estruturado (OTLP)
+          matcherRegex: trace_id
+          url: "$${__value.raw}"
+          datasourceUid: tempo

@@ -1,0 +1,45 @@
+# OpenTelemetry Collector: recebe OTLP da API e distribui cada sinal para o seu backend.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Protege o Collector de estourar a memória sob carga.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+  batch: {}
+
+exporters:
+  otlphttp/mimir: # métricas → Mimir (endpoint OTLP nativo)
+    endpoint: http://mimir:9009/otlp
+  otlp/tempo: # traces → Tempo
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  otlphttp/loki: # logs → Loki (endpoint OTLP nativo)
+    endpoint: http://loki:3100/otlp
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/mimir]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/tempo]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/loki]
