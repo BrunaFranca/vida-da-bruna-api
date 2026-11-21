@@ -53,7 +53,7 @@ func run() error {
 		return err
 	}
 	// Cada query vira um span filho da requisição.
-	cfg.ConnConfig.Tracer = otelpgx.NewTracer(otelpgx.WithTrimSQLInSpanName())
+	cfg.ConnConfig.Tracer = otelpgx.NewTracer()
 	db, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return err
