@@ -16,7 +16,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (http_request_method, http_route) (rate(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\"}[1m]))",
+          "expr": "sum by (http_request_method, http_route) (rate(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route!~\".*/stream\"}[1m]))",
           "legendFormat": "{{http_request_method}} {{http_route}}"
         }
       ]
@@ -37,7 +37,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum(rate(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_response_status_code=~\"5..\"}[1m])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\"}[1m]))",
+          "expr": "(sum(rate(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route!~\".*/stream\", http_response_status_code=~\"5..\"}[1m])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route!~\".*/stream\"}[1m]))",
           "legendFormat": "erros"
         }
       ]
@@ -56,9 +56,9 @@
         "overrides": []
       },
       "targets": [
-        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_request_duration_seconds_bucket{job=\"vida-da-bruna-api\"}[1m])))", "legendFormat": "p50" },
-        { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{job=\"vida-da-bruna-api\"}[1m])))", "legendFormat": "p95", "exemplar": true },
-        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket{job=\"vida-da-bruna-api\"}[1m])))", "legendFormat": "p99" }
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_request_duration_seconds_bucket{job=\"vida-da-bruna-api\", http_route!~\".*/stream\"}[1m])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{job=\"vida-da-bruna-api\", http_route!~\".*/stream\"}[1m])))", "legendFormat": "p95", "exemplar": true },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket{job=\"vida-da-bruna-api\", http_route!~\".*/stream\"}[1m])))", "legendFormat": "p99" }
       ]
     },
     {
@@ -70,6 +70,14 @@
       "targets": [
         { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(db_client_operation_duration_seconds_bucket{job=\"vida-da-bruna-api\"}[1m])))", "legendFormat": "p95" }
       ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Tempo real: conexões SSE abertas",
+      "gridPos": { "x": 0, "y": 27, "w": 24, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "mimir" },
+      "fieldConfig": { "defaults": { "min": 0, "decimals": 0 }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "sum(api_streams_abertos{job=\"vida-da-bruna-api\"})", "legendFormat": "streams" } ]
     },
     {
       "type": "logs",

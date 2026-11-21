@@ -84,7 +84,7 @@ func TestSaude(t *testing.T) {
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
-			rec := pedir(New(silencioso, bancoFalso{c.banco}, memoria{}), http.MethodGet, c.rota, "")
+			rec := pedir(New(silencioso, bancoFalso{c.banco}, memoria{}, &hubFalso{}), http.MethodGet, c.rota, "")
 			if rec.Code != c.status {
 				t.Fatalf("status = %d, quero %d", rec.Code, c.status)
 			}
@@ -93,7 +93,7 @@ func TestSaude(t *testing.T) {
 }
 
 func TestDocumentos(t *testing.T) {
-	h := New(silencioso, bancoFalso{}, memoria{})
+	h := New(silencioso, bancoFalso{}, memoria{}, &hubFalso{})
 
 	passos := []struct {
 		metodo, rota, corpo string

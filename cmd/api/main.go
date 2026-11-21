@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	"github.com/BrunaFranca/vida-da-bruna-api/internal/aovivo"
 	"github.com/BrunaFranca/vida-da-bruna-api/internal/docs"
 	"github.com/BrunaFranca/vida-da-bruna-api/internal/httpapi"
 	"github.com/BrunaFranca/vida-da-bruna-api/internal/migrations"
@@ -66,13 +68,19 @@ func run() error {
 	}
 	log.Info("migrations ok")
 
+	// Tempo real: uma conexão dedicada escuta o Postgres (LISTEN docs) e repassa para os streams SSE.
+	hub := aovivo.NovoHub()
+	go hub.Escutar(ctx, db, log)
+
 	srv := &http.Server{
 		Addr: ":" + env("PORT", "8080"),
-		Handler: otelhttp.NewHandler(httpapi.New(log, db, docs.NovoRepo(db)), "api",
+		Handler: otelhttp.NewHandler(httpapi.New(log, db, docs.NovoRepo(db), hub), "api",
 			// Health checks ficam fora dos traces e das métricas: são ruído e não entram no SLO.
 			otelhttp.WithFilter(func(r *http.Request) bool { return r.URL.Path != "/livez" && r.URL.Path != "/readyz" }),
 		),
 		ReadHeaderTimeout: 5 * time.Second,
+		// As requisições herdam o contexto do processo: no SIGTERM, os streams SSE abertos se encerram sozinhos.
+		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
 
 	erros := make(chan error, 1)

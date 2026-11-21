@@ -37,11 +37,12 @@ type api struct {
 	log  *slog.Logger
 	db   Pinger
 	docs Documentos
+	hub  Assinante
 }
 
 // New monta o roteador com todas as rotas.
-func New(log *slog.Logger, db Pinger, d Documentos) http.Handler {
-	a := &api{log: log, db: db, docs: d}
+func New(log *slog.Logger, db Pinger, d Documentos, hub Assinante) http.Handler {
+	a := &api{log: log, db: db, docs: d, hub: hub}
 	mux := http.NewServeMux()
 
 	// livez: o processo está vivo? Não olha dependências (se olhasse, o orquestrador reiniciaria a API à toa quando o banco cai).
@@ -57,6 +58,10 @@ func New(log *slog.Logger, db Pinger, d Documentos) http.Handler {
 	mux.HandleFunc("PUT /v1/{col}/{id}", comTimeout(a.gravar))
 	mux.HandleFunc("PATCH /v1/{col}/{id}", comTimeout(a.mesclar))
 	mux.HandleFunc("DELETE /v1/{col}/{id}", comTimeout(a.apagar))
+
+	// Tempo real (SSE): sem o timeout de 3 s, a conexão fica aberta enquanto o cliente quiser.
+	mux.HandleFunc("GET /v1/{col}/stream", a.streamColecao)
+	mux.HandleFunc("GET /v1/{col}/{id}/stream", a.streamDoc)
 	return mux
 }
 

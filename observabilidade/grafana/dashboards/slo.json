@@ -20,7 +20,7 @@
         },
         "overrides": []
       },
-      "targets": [ { "refId": "A", "expr": "1 - ((sum(increase(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\", http_response_status_code=~\"5..\"}[30d])) or vector(0)) / sum(increase(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\"}[30d])))" } ]
+      "targets": [ { "refId": "A", "expr": "1 - ((sum(increase(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\", http_route!~\".*/stream\", http_response_status_code=~\"5..\"}[30d])) or vector(0)) / sum(increase(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\", http_route!~\".*/stream\"}[30d])))" } ]
     },
     {
       "type": "stat",
@@ -34,7 +34,7 @@
         },
         "overrides": []
       },
-      "targets": [ { "refId": "A", "expr": "1 - (((sum(increase(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\", http_response_status_code=~\"5..\"}[30d])) or vector(0)) / sum(increase(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\"}[30d]))) / 0.005)" } ]
+      "targets": [ { "refId": "A", "expr": "1 - (((sum(increase(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\", http_route!~\".*/stream\", http_response_status_code=~\"5..\"}[30d])) or vector(0)) / sum(increase(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\", http_route!~\".*/stream\"}[30d]))) / 0.005)" } ]
     },
     {
       "type": "timeseries",
@@ -69,7 +69,7 @@
         },
         "overrides": []
       },
-      "targets": [ { "refId": "A", "expr": "sum(increase(http_server_request_duration_seconds_bucket{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\", le=\"0.3\"}[30d])) / sum(increase(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\"}[30d]))" } ]
+      "targets": [ { "refId": "A", "expr": "sum(increase(http_server_request_duration_seconds_bucket{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\", http_route!~\".*/stream\", le=\"0.3\"}[30d])) / sum(increase(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\", http_route!~\".*/stream\"}[30d]))" } ]
     },
     {
       "type": "stat",
@@ -83,7 +83,7 @@
         },
         "overrides": []
       },
-      "targets": [ { "refId": "A", "expr": "1 - ((1 - sum(increase(http_server_request_duration_seconds_bucket{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\", le=\"0.3\"}[30d])) / sum(increase(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\"}[30d]))) / 0.05)" } ]
+      "targets": [ { "refId": "A", "expr": "1 - ((1 - sum(increase(http_server_request_duration_seconds_bucket{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\", http_route!~\".*/stream\", le=\"0.3\"}[30d])) / sum(increase(http_server_request_duration_seconds_count{job=\"vida-da-bruna-api\", http_route=~\"/v1/.*\", http_route!~\".*/stream\"}[30d]))) / 0.05)" } ]
     },
     {
       "type": "timeseries",

@@ -9,6 +9,7 @@
 #   A janela curta faz o alerta parar logo que o problema acaba.
 #
 # Health checks (/livez, /readyz) já ficam fora das métricas (filtro no otelhttp).
+# Streams SSE (/v1/.../stream) ficam fora do SLO: são conexões longas de propósito, não requisições lentas.
 
 groups:
   - name: slo-disponibilidade-sli
@@ -17,20 +18,20 @@ groups:
       # Fração de requisições com erro (5xx) em cada janela.
       - record: slo:disponibilidade:erros_razao5m
         expr: |
-          (sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_response_status_code=~"5.."}[5m])) or vector(0))
-          / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[5m]))
+          (sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream", http_response_status_code=~"5.."}[5m])) or vector(0))
+          / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream"}[5m]))
       - record: slo:disponibilidade:erros_razao30m
         expr: |
-          (sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_response_status_code=~"5.."}[30m])) or vector(0))
-          / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[30m]))
+          (sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream", http_response_status_code=~"5.."}[30m])) or vector(0))
+          / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream"}[30m]))
       - record: slo:disponibilidade:erros_razao1h
         expr: |
-          (sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_response_status_code=~"5.."}[1h])) or vector(0))
-          / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[1h]))
+          (sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream", http_response_status_code=~"5.."}[1h])) or vector(0))
+          / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream"}[1h]))
       - record: slo:disponibilidade:erros_razao6h
         expr: |
-          (sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_response_status_code=~"5.."}[6h])) or vector(0))
-          / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[6h]))
+          (sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream", http_response_status_code=~"5.."}[6h])) or vector(0))
+          / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream"}[6h]))
 
   - name: slo-latencia-sli
     interval: 30s
@@ -39,26 +40,26 @@ groups:
       - record: slo:latencia:lentas_razao5m
         expr: |
           1 - (
-            sum(rate(http_server_request_duration_seconds_bucket{job="vida-da-bruna-api", http_route=~"/v1/.*", le="0.3"}[5m]))
-            / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[5m]))
+            sum(rate(http_server_request_duration_seconds_bucket{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream", le="0.3"}[5m]))
+            / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream"}[5m]))
           )
       - record: slo:latencia:lentas_razao30m
         expr: |
           1 - (
-            sum(rate(http_server_request_duration_seconds_bucket{job="vida-da-bruna-api", http_route=~"/v1/.*", le="0.3"}[30m]))
-            / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[30m]))
+            sum(rate(http_server_request_duration_seconds_bucket{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream", le="0.3"}[30m]))
+            / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream"}[30m]))
           )
       - record: slo:latencia:lentas_razao1h
         expr: |
           1 - (
-            sum(rate(http_server_request_duration_seconds_bucket{job="vida-da-bruna-api", http_route=~"/v1/.*", le="0.3"}[1h]))
-            / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[1h]))
+            sum(rate(http_server_request_duration_seconds_bucket{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream", le="0.3"}[1h]))
+            / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream"}[1h]))
           )
       - record: slo:latencia:lentas_razao6h
         expr: |
           1 - (
-            sum(rate(http_server_request_duration_seconds_bucket{job="vida-da-bruna-api", http_route=~"/v1/.*", le="0.3"}[6h]))
-            / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*"}[6h]))
+            sum(rate(http_server_request_duration_seconds_bucket{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream", le="0.3"}[6h]))
+            / sum(rate(http_server_request_duration_seconds_count{job="vida-da-bruna-api", http_route=~"/v1/.*", http_route!~".*/stream"}[6h]))
           )
 
   - name: slo-alertas
