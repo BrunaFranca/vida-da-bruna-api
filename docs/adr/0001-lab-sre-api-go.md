@@ -10,7 +10,7 @@ O app Vida da Bruna roda hoje como Claude Artifact (repo privado `vida-da-bruna`
 - API em Go (biblioteca padrão + pgx), um "banco de documentos" que espelha a interface `Store` do app (tabela `docs`: coleção, id, JSONB), para o frontend trocar de banco sem mudar telas.
 - Tudo local com **Docker Compose** (Docker Desktop + WSL2).
 - Etapas:
-  1. Esqueleto (`/livez`, `/readyz`), Dockerfile, Compose com Postgres, CI.
+  1. Esqueleto (`/livez`, `/readyz`), Dockerfile, Compose com Postgres, CI. **Concluída em 21/11/2026.**
   2. CRUD de documentos + migrations + testes.
   3. Observabilidade: OpenTelemetry → Collector → Prometheus, Tempo e Grafana; dashboards e SLO com burn rate como código.
   4. Tempo real (SSE) + `ApiStore` no app + import do backup do artifact (local, nunca versionado).
