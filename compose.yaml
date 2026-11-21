@@ -1,0 +1,30 @@
+# Ambiente local: `docker compose up --build` e a API responde em http://localhost:8080/readyz
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: vida
+      POSTGRES_PASSWORD: vida-local # só para desenvolvimento local
+      POSTGRES_DB: vida
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - dados:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vida -d vida"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgres://vida:vida-local@db:5432/vida?sslmode=disable
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dados:
