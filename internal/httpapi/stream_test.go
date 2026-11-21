@@ -66,7 +66,7 @@ func TestStreamDoc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
 		t.Fatalf("Content-Type = %q", ct)
 	}
@@ -92,8 +92,13 @@ func TestStreamMulti(t *testing.T) {
 	srv := httptest.NewServer(New(silencioso, bancoFalso{}, mem, hub))
 	defer srv.Close()
 
-	if r, _ := http.Get(srv.URL + "/v1/stream"); r.StatusCode != http.StatusBadRequest {
-		t.Fatalf("sem itens: status %d, quero 400", r.StatusCode)
+	r400, err := http.Get(srv.URL + "/v1/stream")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = r400.Body.Close()
+	if r400.StatusCode != http.StatusBadRequest {
+		t.Fatalf("sem itens: status %d, quero 400", r400.StatusCode)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -103,7 +108,7 @@ func TestStreamMulti(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	r := bufio.NewReader(resp.Body)
 
 	// Na conexão, chega o estado atual de cada item.
